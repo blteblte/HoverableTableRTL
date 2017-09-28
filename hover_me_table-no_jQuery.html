@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>table</title>
+    <style>
+
+      body { font-family: Arial, Helvetica, sans-serif; font-weight: bold; }
+
+      td { background-color: #EEEEEE; text-align: center; width: 60px; height: 60px;
+        border: 1px solid #fff;
+        cursor: pointer;
+               transition: background-color .15s ease-in-out;
+       -webkit-transition: background-color .15s ease-in-out;
+       user-select: none;
+       -webkit-user-select: none;
+      }
+
+      td.active { background-color: #A38888; }
+      td.sub-active { background-color: #CECECE; }
+      td.selected { border-color: #4E370C; background-color: #A38888; }
+
+    </style>
+  </head>
+  <body>
+
+    <div id="table"></div>
+
+    <script>
+      var HoverableTable = {};
+      !function(obj) {
+
+        var locked = false
+        var releaseHover = undefined
+        var releaseSelected = undefined
+        var li = -1, lk = -1
+        var getTemplateHtml
+
+        function render(options) {
+          /* apply options or defaults */
+          var arr = options.data || []
+          var dir = options.direction || 'LTR'
+          var id = options.target || 'body'
+          getTemplateHtml = options.template || function(item) { return JSON.stringify(item) }
+
+          /* load column templates in memory */
+          var template = templateArray(arr, dir)
+          /* generate table in memory */
+          var $table = generateTable(template)
+          /* insert generated table into DOM */
+          var $container = document.getElementById(id)
+          $container.innerHTML = ''
+          $container.appendChild($table)
+        }
+
+        function templateArray(array2d, direction) {
+          var templated2dArray = []
+          for(var i = 0; i < array2d.length; i++) {
+            if (!templated2dArray[i]) { templated2dArray[i] = [] }
+            if (direction === 'LTR') {
+              for (var k = 0; k < array2d[i].length; k++)
+                templateItem(templated2dArray, array2d, direction, i, k)
+            } else {
+              for (var k = array2d[i].length - 1; k >= 0; k--)
+                templateItem(templated2dArray, array2d, direction, i, k)
+            }
+          }
+          return templated2dArray
+        }
+
+        function templateItem(templated2dArray, array2d, direction, i, k) {
+          var item = array2d[i][k]
+          var $itemTemplate = document.createElement('td')
+          $itemTemplate.addEventListener('mouseenter', function(e) {
+            mouseEnterHandler.bind(e, templated2dArray, direction, i, k)()
+          })
+          $itemTemplate.addEventListener('mouseleave', function(e) {
+            mouseLeaveHandler.bind(e, templated2dArray, direction, i, k)()
+          })
+          $itemTemplate.addEventListener('click', function(e) {
+
+            if (locked) {
+              releaseHover()
+              releaseSelected()
+              locked = false
+            }
+
+            var isSameElement = (li === i && k === lk)
+            if (!isSameElement) {
+              li = i
+              lk = k
+              mouseEnterHandler.bind(e, templated2dArray, direction, li, lk, true)()
+
+              releaseHover =
+                mouseLeaveHandler.bind(e, templated2dArray, direction, li, lk, locked = true, false)
+              releaseSelected =
+                mouseLeaveHandler.bind(e, templated2dArray, direction, li, lk, locked = true, true)
+            }
+            else {
+              li = -1
+              lk = -1
+            }
+
+          })
+
+          /* set HTML of template item */
+          $itemTemplate.innerHTML = getTemplateHtml(item)
+          /*  */
+
+          templated2dArray[i].push($itemTemplate)
+        }
+
+        function generateTable(templated2dArray) {
+          var $table = document.createElement('table')
+          var $tbody = document.createElement('tbody')
+
+          for (var row of templated2dArray) {
+            const $tr = document.createElement('tr')
+            for (var $td of row) { $tr.appendChild($td) }
+            $tbody.appendChild($tr)
+          }
+          $table.appendChild($tbody)
+          return $table
+        }
+
+        function mouseEnterHandler(templated2dArray, direction, i, k, isClick) {
+          if (locked) return;
+
+          var className = isClick ? ' selected' : ' active'
+          hovCurrent(templated2dArray, direction, i, k, className, true)
+          subItems(templated2dArray, direction, i, k
+            , function(e) {
+              if (!(e.className.indexOf('sub-active') > -1)) {
+                e.className = e.className + ' sub-active'
+            }
+          })
+        }
+
+        function mouseLeaveHandler(templated2dArray, direction, i, k, release, isClick) {
+          if (locked && !release) return;
+
+          var className = isClick ? ' selected' : ' active'
+          hovCurrent(templated2dArray, direction, i, k, className, false)
+          subItems(templated2dArray, direction, i, k
+            , function(e) {
+              if (e.className.indexOf('sub-active') > -1) {
+                e.className = e.className.replace(' sub-active', '')
+            }
+          })
+        }
+
+        function hovCurrent(templated2dArray, direction, i, k
+          , className, add
+        ) {
+          var currentItem
+          if (direction === 'LTR')
+            currentItem = templated2dArray[i][k]
+          else
+            currentItem = templated2dArray[i][templated2dArray.length - k + 1]
+          if (add) {
+            if (!(currentItem.className.indexOf(className) > -1)) {
+              currentItem.className = currentItem.className + ' ' + className
+            }
+          }
+          else {
+            if (currentItem.className.indexOf(className) > -1) {
+              currentItem.className = currentItem.className.replace(' ' + className, '')
+            }
+          }
+        }
+
+        function subItems(templated2dArray, direction, i, k, action) {
+          if (direction === 'LTR') {
+            for (var x = k; x > 0; x--)
+              action(templated2dArray[i][x - 1])
+            for (var y = i; y > 0; y--)
+              action(templated2dArray[y - 1][k])
+          } else {
+             for (var x = k; x > 0; x--)
+               action(templated2dArray[i][templated2dArray[i].length - x])
+            for (var y = i; y > 0; y--)
+             action(templated2dArray[y - 1][templated2dArray.length - k + 1])
+          }
+        }
+
+        obj.render = render
+      } (HoverableTable || {})
+
+      /* input data */
+      var data = [
+        [ { text: 1 }, { text: 2 }, { text: 3 }, { text: 4 }, { text: 5 }, { text: 6 }, { text: 7 }, { text: 8 }, { text: 9 } ],
+        [ { text: 1 }, { text: 2 }, { text: 3 }, { text: 4 }, { text: 5 }, { text: 6 }, { text: 7 }, { text: 8 }, { text: 9 } ],
+        [ { text: 1 }, { text: 2 }, { text: 3 }, { text: 4 }, { text: 5 }, { text: 6 }, { text: 7 }, { text: 8 }, { text: 9 } ],
+        [ { text: 1 }, { text: 2 }, { text: 3 }, { text: 4 }, { text: 5 }, { text: 6 }, { text: 7 }, { text: 8 }, { text: 9 } ],
+        [ { text: 1 }, { text: 2 }, { text: 3 }, { text: 4 }, { text: 5 }, { text: 6 }, { text: 7 }, { text: 8 }, { text: 9 } ],
+        [ { text: 1 }, { text: 2 }, { text: 3 }, { text: 4 }, { text: 5 }, { text: 6 }, { text: 7 }, { text: 8 }, { text: 9 } ],
+        [ { text: 1 }, { text: 2 }, { text: 3 }, { text: 4 }, { text: 5 }, { text: 6 }, { text: 7 }, { text: 8 }, { text: 9 } ]
+      ]
+      /* execute */
+      HoverableTable.render({
+        data: data,
+        direction: 'RTL',
+        target: 'table',
+        template: function(item) {
+          return (
+            '<span>' + item.text + '</span>'
+          )
+        }
+      })
+
+    </script>
+  </body>
+</html>
